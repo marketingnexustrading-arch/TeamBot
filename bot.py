@@ -7,12 +7,32 @@ import asyncio
 # ============================================
 # Konfiguration laden
 # ============================================
-with open('config.json', 'r') as f:
-    config = json.load(f)
+import os
+from dotenv import load_dotenv
 
-TOKEN = config['TOKEN']
-GUILD_ID = config['GUILD_ID']
-TEAM_SIZE = config['TEAM_SIZE']
+# .env Datei laden (falls vorhanden)
+load_dotenv()
+
+# Token aus Umgebungsvariable oder config.json
+TOKEN = os.getenv('DISCORD_TOKEN')
+GUILD_ID = os.getenv('GUILD_ID')
+TEAM_SIZE = os.getenv('TEAM_SIZE', '25')
+
+# Fallback auf config.json wenn .env nicht existiert
+if not TOKEN or not GUILD_ID:
+    try:
+        with open('config.json', 'r') as f:
+            config = json.load(f)
+        TOKEN = TOKEN or config['TOKEN']
+        GUILD_ID = int(GUILD_ID) if GUILD_ID else config['GUILD_ID']
+        TEAM_SIZE = int(TEAM_SIZE) if TEAM_SIZE else config.get('TEAM_SIZE', 25)
+    except FileNotFoundError:
+        print("❌ Fehler: Weder .env noch config.json gefunden!")
+        print("📝 Erstelle eine .env Datei mit DISCORD_TOKEN und GUILD_ID")
+        exit(1)
+else:
+    GUILD_ID = int(GUILD_ID)
+    TEAM_SIZE = int(TEAM_SIZE)
 
 # ============================================
 # Bot Setup
@@ -29,7 +49,6 @@ tree = bot.tree
 # Globale Variablen
 # ============================================
 teams = {}  # Format: {team_number: {'members': [user_ids], 'role': role_obj, 'text': channel, 'voice': channel}}
-community_category = None
 teams_category = None
 
 # ============================================
@@ -119,18 +138,20 @@ async def create_team(guild: discord.Guild, team_number: int):
         coach_role: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_messages=True, connect=True, speak=True)
     }
     
-    # Text-Kanal erstellen
+    # Text-Kanal erstellen (unter Teams-Kategorie)
     text_channel = await guild.create_text_channel(
         name=f"team-{team_number}-chat",
         category=teams_category,
-        overwrites=overwrites
+        overwrites=overwrites,
+        position=team_number  # Sortierung: Team 1, 2, 3...
     )
     
-    # Voice-Kanal erstellen
+    # Voice-Kanal erstellen (direkt nach Text-Channel)
     voice_channel = await guild.create_voice_channel(
         name=f"Team {team_number} Voice",
         category=teams_category,
-        overwrites=overwrites
+        overwrites=overwrites,
+        position=team_number + 100  # Voice-Channels unter Text-Channels
     )
     
     # Team-Daten speichern
@@ -157,38 +178,25 @@ async def create_team(guild: discord.Guild, team_number: int):
 @tree.command(name="setup_ticket", description="Erstellt das Ticket-System für Team-Beitritte", guild=discord.Object(id=GUILD_ID))
 @app_commands.checks.has_permissions(administrator=True)
 async def setup_ticket(interaction: discord.Interaction):
-    """Erstellt die grundlegende Struktur: Kategorien, Kanäle und Ticket-Message"""
-    global community_category, teams_category
+    """Erstellt die grundlegende Struktur: Teams-Kategorie und Ticket-Message"""
+    global teams_category
     
     await interaction.response.defer(ephemeral=True)
     
     guild = interaction.guild
     
-    # Community-Kategorie erstellen
-    if not community_category:
-        community_category = await guild.create_category("🌍 Community")
-        
-        # Allgemeiner Text-Channel
-        await guild.create_text_channel(
-            name="general",
-            category=community_category
-        )
-        
-        # Allgemeiner Voice-Channel
-        await guild.create_voice_channel(
-            name="General Voice",
-            category=community_category
-        )
+    # Prüfen ob Teams-Kategorie bereits existiert
+    for category in guild.categories:
+        if category.name == "Teams":
+            teams_category = category
+            break
     
-    # Teams-Kategorie erstellen
+    # Teams-Kategorie erstellen (falls nicht vorhanden)
     if not teams_category:
-        teams_category = await guild.create_category("🎮 Teams")
+        teams_category = await guild.create_category("Teams")
     
-    # Ticket-Channel erstellen
-    ticket_channel = await guild.create_text_channel(
-        name="join-team",
-        category=community_category
-    )
+    # Aktuellen Channel verwenden (wo der Command ausgeführt wurde)
+    ticket_channel = interaction.channel
     
     # Embed für Ticket-Message
     embed = discord.Embed(
@@ -211,7 +219,8 @@ async def setup_ticket(interaction: discord.Interaction):
     await ticket_channel.send(embed=embed, view=view)
     
     await interaction.followup.send(
-        f"✅ Ticket-System wurde in {ticket_channel.mention} erstellt!",
+        f"✅ Ticket-System wurde in diesem Channel erstellt!\n"
+        f"📁 Teams-Kategorie: {teams_category.mention if teams_category else 'Erstellt'}",
         ephemeral=True
     )
 
