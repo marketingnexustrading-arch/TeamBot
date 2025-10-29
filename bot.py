@@ -22,13 +22,11 @@ logger = logging.getLogger('TeamBot')
 # ============================================
 load_dotenv()
 
-# Token aus Umgebungsvariable
 TOKEN = os.getenv('DISCORD_TOKEN')
 GUILD_ID = os.getenv('GUILD_ID')
 TEAM_SIZE = os.getenv('TEAM_SIZE', '25')
 DATA_FILE = 'teams_data.json'
 
-# Validierung
 if not TOKEN:
     logger.error("DISCORD_TOKEN nicht gesetzt!")
     exit(1)
@@ -66,7 +64,7 @@ teams_category: Optional[discord.CategoryChannel] = None
 # Data Persistence
 # ============================================
 def save_teams_data():
-    """Speichert Team-Daten in JSON (für Wiederherstellung nach Neustart)"""
+    """Speichert Team-Daten in JSON"""
     try:
         data = {
             'teams': {
@@ -99,11 +97,9 @@ async def load_teams_data(guild: discord.Guild):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
-        # Kategorie wiederherstellen
         if data.get('category_id'):
             teams_category = guild.get_channel(data['category_id'])
         
-        # Teams wiederherstellen
         for team_num_str, team_data in data.get('teams', {}).items():
             team_num = int(team_num_str)
             
@@ -188,9 +184,9 @@ class JoinTeamView(discord.ui.View):
             logger.info(f"User {user.name} (ID: {user.id}) Team {assigned_team} beigetreten")
             
         except Exception as e:
-            logger.error(f"Fehler beim Team-Beitritt: {e}")
+            logger.error(f"Fehler beim Team-Beitritt: {e}", exc_info=True)
             await interaction.response.send_message(
-                "❌ Ein Fehler ist aufgetreten. Bitte versuche es später erneut.",
+                f"❌ Ein Fehler ist aufgetreten: {str(e)}",
                 ephemeral=True
             )
 
@@ -449,6 +445,7 @@ async def team_info(interaction: discord.Interaction):
             "❌ Ein Fehler ist aufgetreten.",
             ephemeral=True
         )
+
 # ============================================
 # Debug Command
 # ============================================
@@ -489,15 +486,16 @@ async def debug_permissions(interaction: discord.Interaction):
         inline=False
     )
     
-    # Alle Rollen auflisten
-    roles_list = "\n".join([f"{r.position}: {r.name}" for r in sorted(guild.roles, key=lambda r: r.position, reverse=True)[:10]])
+    # Rollen-Count
+    total_roles = len(guild.roles)
     embed.add_field(
-        name="Top 10 Rollen (Position)",
-        value=roles_list,
+        name="Server Rollen",
+        value=f"Verwendet: {total_roles}/250\nVerfügbar: {250 - total_roles}",
         inline=False
     )
     
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
 # ============================================
 # Bot Events
 # ============================================
@@ -507,17 +505,24 @@ async def on_ready():
     logger.info(f'Bot ist eingeloggt als {bot.user}')
     logger.info(f'Verbunden mit {len(bot.guilds)} Server(n)')
     
+    for guild in bot.guilds:
+        logger.info(f"  - {guild.name} (ID: {guild.id})")
+    
     # Commands global synchronisieren
     try:
         synced = await tree.sync()
         logger.info(f'{len(synced)} Slash Command(s) global synchronisiert')
+        
+        for cmd in synced:
+            logger.info(f"  ✓ Command registriert: /{cmd.name}")
+            
     except Exception as e:
         logger.error(f'Fehler beim Synchronisieren: {e}')
     
     # Persistent View registrieren
     bot.add_view(JoinTeamView())
     
-    # Teams-Daten laden (für den konfigurierten Server)
+    # Teams-Daten laden
     guild = bot.get_guild(GUILD_ID)
     if guild:
         await load_teams_data(guild)
