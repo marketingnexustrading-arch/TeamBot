@@ -290,8 +290,7 @@ async def create_team(guild: discord.Guild, team_number: int):
 # ============================================
 @tree.command(
     name="setup_ticket",
-    description="Erstellt das Ticket-System für Team-Beitritte",
-    guild=discord.Object(id=GUILD_ID)
+    description="Erstellt das Ticket-System für Team-Beitritte"
 )
 @app_commands.checks.has_permissions(administrator=True)
 async def setup_ticket(interaction: discord.Interaction):
@@ -358,8 +357,7 @@ async def setup_ticket(interaction: discord.Interaction):
 # ============================================
 @tree.command(
     name="leave_team",
-    description="Verlässt dein aktuelles Team",
-    guild=discord.Object(id=GUILD_ID)
+    description="Verlässt dein aktuelles Team"
 )
 async def leave_team(interaction: discord.Interaction):
     """Ermöglicht Usern, ihr Team zu verlassen"""
@@ -414,8 +412,7 @@ async def leave_team(interaction: discord.Interaction):
 # ============================================
 @tree.command(
     name="team_info",
-    description="Zeigt Informationen über alle Teams",
-    guild=discord.Object(id=GUILD_ID)
+    description="Zeigt Informationen über alle Teams"
 )
 async def team_info(interaction: discord.Interaction):
     """Zeigt eine Übersicht über alle Teams"""
@@ -462,20 +459,22 @@ async def on_ready():
     logger.info(f'Bot ist eingeloggt als {bot.user}')
     logger.info(f'Verbunden mit {len(bot.guilds)} Server(n)')
     
-    # Commands synchronisieren
+    # Commands global synchronisieren
     try:
-        synced = await tree.sync(guild=discord.Object(id=GUILD_ID))
-        logger.info(f'{len(synced)} Slash Command(s) synchronisiert')
+        synced = await tree.sync()
+        logger.info(f'{len(synced)} Slash Command(s) global synchronisiert')
     except Exception as e:
         logger.error(f'Fehler beim Synchronisieren: {e}')
     
     # Persistent View registrieren
     bot.add_view(JoinTeamView())
     
-    # Teams-Daten laden
+    # Teams-Daten laden (für den konfigurierten Server)
     guild = bot.get_guild(GUILD_ID)
     if guild:
         await load_teams_data(guild)
+    else:
+        logger.warning(f"Guild mit ID {GUILD_ID} nicht gefunden!")
     
     logger.info('Bot ist bereit!')
 
