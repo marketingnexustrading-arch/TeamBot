@@ -298,15 +298,15 @@ async def setup_ticket(interaction: discord.Interaction):
     guild = interaction.guild
     
     try:
-        # Teams-Kategorie finden oder erstellen
+        # My Team Kategorie finden oder erstellen
         for category in guild.categories:
-            if category.name == "Teams":
+            if category.name == "My Team":
                 teams_category = category
                 break
         
         if not teams_category:
-            teams_category = await guild.create_category("Teams")
-            logger.info("Teams-Kategorie erstellt")
+            teams_category = await guild.create_category("My Team")
+            logger.info("My Team Kategorie erstellt")
         
         ticket_channel = interaction.channel
         
