@@ -449,7 +449,55 @@ async def team_info(interaction: discord.Interaction):
             "❌ Ein Fehler ist aufgetreten.",
             ephemeral=True
         )
-
+# ============================================
+# Debug Command
+# ============================================
+@tree.command(
+    name="debug_permissions",
+    description="Zeigt Bot-Berechtigungen an"
+)
+@app_commands.checks.has_permissions(administrator=True)
+async def debug_permissions(interaction: discord.Interaction):
+    """Zeigt detaillierte Bot-Berechtigungen"""
+    guild = interaction.guild
+    bot_member = guild.me
+    
+    perms = bot_member.guild_permissions
+    
+    embed = discord.Embed(
+        title="🔍 Bot Berechtigungen",
+        color=discord.Color.blue()
+    )
+    
+    embed.add_field(
+        name="Wichtige Berechtigungen",
+        value=f"""
+        Administrator: {perms.administrator}
+        Manage Roles: {perms.manage_roles}
+        Manage Channels: {perms.manage_channels}
+        Send Messages: {perms.send_messages}
+        """,
+        inline=False
+    )
+    
+    embed.add_field(
+        name="Bot Info",
+        value=f"""
+        Top Role: {bot_member.top_role.name}
+        Position: {bot_member.top_role.position}
+        """,
+        inline=False
+    )
+    
+    # Alle Rollen auflisten
+    roles_list = "\n".join([f"{r.position}: {r.name}" for r in sorted(guild.roles, key=lambda r: r.position, reverse=True)[:10]])
+    embed.add_field(
+        name="Top 10 Rollen (Position)",
+        value=roles_list,
+        inline=False
+    )
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 # ============================================
 # Bot Events
 # ============================================
