@@ -174,8 +174,18 @@ class JoinTeamView(discord.ui.View):
             # Check if user is already in a team
             for team_num, team_data in teams.items():
                 if user.id in team_data['members']:
+                    # User is already in team, but make sure they have the role
+                    member_role = team_data['role']
+                    if member_role not in user.roles:
+                        # Re-assign the role if missing
+                        await user.add_roles(member_role)
+                        logger.info(f"🔄 Re-assigned role for {user.name} in Team {team_num}")
+
                     await interaction.response.send_message(
-                        f"❌ You are already in **Team {team_num}**!",
+                        f"✅ You are already in **Team {team_num}**!\n"
+                        f"🎮 Your channels:\n"
+                        f"• {team_data['text'].mention}\n"
+                        f"• {team_data['voice'].mention}",
                         ephemeral=True
                     )
                     return
@@ -509,6 +519,32 @@ async def on_ready():
     bot.add_view(JoinTeamView())
     
     logger.info('🚀 Bot is ready!')
+
+@bot.event
+async def on_member_remove(member: discord.Member):
+    """Called when a member leaves the server"""
+    try:
+        logger.info(f"👋 Member {member.name} left the server")
+
+        # Check if member was in a team
+        for team_num, team_data in teams.items():
+            if member.id in team_data['members']:
+                # Remove from team
+                team_data['members'].remove(member.id)
+                save_teams_data()
+
+                logger.info(f"✅ Removed {member.name} from Team {team_num}")
+
+                # Notify team
+                team_channel = team_data['text']
+                await team_channel.send(
+                    f"👋 **{member.name}** left the server and was removed from the team. "
+                    f"Members: **{len(team_data['members'])}/{TEAM_SIZE}**"
+                )
+                break
+
+    except Exception as e:
+        logger.error(f"❌ Error in on_member_remove: {e}", exc_info=True)
 
 @bot.event
 async def on_error(event, *args, **kwargs):
